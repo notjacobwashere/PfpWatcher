@@ -1,13 +1,13 @@
 # PfpWatcher for Vencord desktop
 
-Collect selected users' global profile pictures at Discord startup, optionally check every 30 minutes, and browse your local collection.
+Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.1.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.2.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Install or upgrade
 
 1. Get a [Vencord source checkout](https://docs.vencord.dev/installing/).
-2. Copy the entire `pfpWatcher.desktop` folder into `Vencord/src/userplugins/` (create `userplugins` if necessary). For upgrades, replace the old plugin folder with the new one. Copy all five files, including `Gallery.tsx`, `bridge.ts`, `gallery.css`.
+2. Copy the entire `pfpWatcher.desktop` folder into `Vencord/src/userplugins/` (create `userplugins` if necessary). For upgrades, replace the old plugin folder with the new one. Copy all six files, including `Gallery.tsx`, `bridge.ts`, `gallery.css`, and `watch.ts`.
 3. In the Vencord checkout run `pnpm install --frozen-lockfile`, `pnpm build --dev`, then `pnpm inject`. Restart Discord.
 4. Enable **PfpWatcher** under Settings → Vencord → Plugins and open its settings.
 5. Enter comma-separated Discord usernames or user IDs in **users**. Enter an absolute destination path in **folder**, or leave it blank for your operating system's Documents/pfp folder. Save your settings.
@@ -31,7 +31,7 @@ Files collected with the first plugin version still appear. Their original exact
 
 ## Automatic checks
 
-Enable **collectEvery30Minutes** for checks every 30 minutes while Discord is running and logged in. Startup checks still run.
+Enable **Automatic checks** in the plugin settings and set **Check interval (minutes)** to a whole number from 1 to 1440 (default 30). The first scheduled check runs after that interval, then repeats while Discord is running and logged in. Changing the interval restarts the timer. Startup checks still happen. Manual and scheduled checks share one queue, so overlapping triggers do not download pictures twice.
 
 Turning the option off clears the timer immediately. Disabling the plugin stops future checks. An image download already in progress may finish. No checks run while Discord is closed; sleep or suspension can delay timers.
 
@@ -54,6 +54,13 @@ The Vencord website lists plugins accepted into its official project. A GitHub p
 Upstream submission requires human review under [Vencord's contribution policy](https://github.com/Vendicated/Vencord/blob/main/CONTRIBUTING.md#ai-policy), disclosure of AI assistance, a real Discord author ID in place of the current `0n` placeholder, and acceptance by Vencord's maintainers. This plugin was implemented with OpenAI Codex. No upstream submission or official acceptance is claimed.
 
 License: [GPL-3.0-or-later](LICENSE).
+
+## Live avatar collection
+
+Automatic checks now use Check interval (minutes), a whole number from 1 to 1440, default 30. The existing automatic-check toggle is retained. Changing the interval restarts the timer.
+
+Save avatars when Discord loads them is enabled by default. Chromium resource events and Discord USER_UPDATE events trigger collection only for tracked users. DevTools may remain closed. Only global avatars are supported; changes never received by the running client cannot be observed. Existing archives are deduplicated. Scheduled checks remain useful when Discord does not load an avatar. Disabling the option or plugin disconnects the resource observer and cancels queued work; an active download may finish.
+
 
 
 ## Compatible Vencord build
