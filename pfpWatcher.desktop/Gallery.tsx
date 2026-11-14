@@ -15,7 +15,7 @@ import { Modal, openModal, useEffect, useMemo, UserStore, useState } from "@webp
 import { Native } from "./bridge";
 import type { ArchivedAvatar } from "./native";
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 24;
 const SORT_OPTIONS = {
     newest: "Newest collected first",
     oldest: "Oldest collected first",
@@ -108,7 +108,7 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
                 count: 1
             });
         }
-        return [...map.values()].sort((a, b) => a.username.localeCompare(b.username) || a.id.localeCompare(b.id));
+        return [...map.values()].sort((a, b) => b.count - a.count || a.username.localeCompare(b.username) || a.id.localeCompare(b.id));
     }, [avatars, aliases]);
     const names = new Map(users.map(user => [user.id, user.username]));
     const filtered = useMemo(() => sortAvatars(avatars.filter(a => !selected || a.userId === selected), sort), [avatars, selected, sort]);

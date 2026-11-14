@@ -2,7 +2,7 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.2.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.3.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Install or upgrade
 
@@ -19,10 +19,10 @@ Upgrading keeps the existing settings and pfp folder. This requires desktop Venc
 
 Open Settings → Vencord → Plugins → PfpWatcher → **Browse collected pfps**.
 
-- **User** lists only accounts with saved pictures, with usernames, IDs, and picture counts. Choose an account to see its collection, or choose All users.
+- **User** lists only accounts with saved pictures, with usernames, IDs, and picture counts. Accounts are sorted by saved-picture count, highest first (alphabetically for ties). Choose an account to see its collection, or choose All users.
 - **Sort by** offers newest collected, oldest collected, animated first, static first, and filename A–Z. Type sorts use newest collection time within each group.
 - Each picture shows its PNG/GIF type and collection date and time in your local timezone. Animated GIFs play in the gallery. **Show in folder** selects that exact saved file in your operating system's file manager.
-- Collections have 12 pictures per page. Use Previous/Next to browse all pictures, and Refresh after collecting new pictures or changing files outside the plugin.
+- Collections have 24 pictures per page. Use Previous/Next to browse all pictures, and Refresh after collecting new pictures or changing files outside the plugin.
 - The gallery reads local images; it does not download pictures again. It displays saved files even if you remove their users from the tracking list.
 
 New collections save usernames and original collection timestamps in JSON sidecars under `<pfp folder>/.pfp-watcher/`. Keep this hidden folder when moving or backing up your collection. Duplicate checks preserve the original collection time, even after a username changes.
@@ -66,4 +66,11 @@ Save avatars when Discord loads them is enabled by default. Chromium resource ev
 ## Compatible Vencord build
 
 The launch fix uses Vencord revision d07030c0968e31e41caa0c35fda0ef8ae63a079e. In your Vencord checkout, run `git checkout d07030c0968e31e41caa0c35fda0ef8ae63a079e` before installing dependencies and building. An older Vencord checkout caused the black startup window; rebuilding at this revision restored launch. Discord Canary launch was verified. Future Discord changes may require newer Vencord source.
+
+
+## Beta 3 changes
+
+The gallery uses smaller 130px tiles and 24 pictures per page. The user picker ranks accounts by picture count, most first. Numeric settings accept Vencord’s text input correctly, including an interval of 10 minutes. Repeated IDs and username aliases resolving to one account are checked once per scan. Existing image filenames still prevent duplicate saved files.
+
+Open the top-right Vencord Toolbox button, then PfpWatcher, for Rescan tracked users and Open gallery. VencordToolbox is a required dependency. Rescan reports progress and results using Discord toasts.
 

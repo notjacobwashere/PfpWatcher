@@ -11,7 +11,7 @@ import ErrorBoundary from "@components/ErrorBoundary";
 import { Logger } from "@utils/Logger";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
-import { RestAPI, UserStore, useState } from "@webpack/common";
+import { Menu, RestAPI, showToast, UserStore, useState } from "@webpack/common";
 
 import { Native } from "./bridge";
 import { openGallery } from "./Gallery";
@@ -41,7 +41,13 @@ const settings = definePluginSettings({
         type: OptionType.NUMBER,
         description: "Minutes between automatic checks (1–1440). Changes restart the timer.",
         default: 30,
-        isValid: value => typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 1440 || "Enter a whole number from 1 to 1440.",
+        min: 1,
+        max: 1440,
+        isValid: value => {
+            // Vencord's number input validates text before converting it to a number.
+            const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : NaN;
+            return Number.isInteger(number) && number >= 1 && number <= 1440 || "Enter a whole number from 1 to 1440.";
+        },
         onChange: () => configureCollectionTimer(settings.store.collectEvery30Minutes)
     },
     collectOnDiscordLoad: {
@@ -116,6 +122,7 @@ async function checkUsers() {
     let existing = 0;
     let missing = 0;
     const failures: string[] = [];
+    const checkedIds = new Set<string>();
     for (const entry of entries) {
         if (!enabled || checkSession !== session) break;
         try {
@@ -125,6 +132,9 @@ async function checkUsers() {
                 if (matches.length !== 1) throw new Error("Username not found or ambiguous; open their profile first, or use their user ID.");
                 id = matches[0].id;
             }
+            // Aliases and an explicit ID may resolve to the same account.
+            if (checkedIds.has(id)) continue;
+            checkedIds.add(id);
             // Fetch fresh data: the user store may still contain yesterday's avatar.
             const { body } = await RestAPI.get({ url: `/users/${id}` });
             if (body.id !== id) throw new Error("Unexpected user response");
@@ -181,7 +191,18 @@ export default definePlugin({
     name: "PfpWatcher",
     description: "Collect tracked users' avatars at startup, on a schedule, or when Discord loads them.",
     authors: [{ name: "notjacobwashere", id: 0n }],
+    dependencies: ["VencordToolbox"],
     settings,
+    toolboxActions() {
+        return <Menu.MenuItem id="pfp-watcher-menu" label="PfpWatcher">
+            <Menu.MenuItem id="pfp-watcher-rescan" label="Rescan tracked users" action={() => {
+                showToast({ text: "Checking tracked users’ avatars…" });
+                void checkNow().then(text => showToast({ text }))
+                    .catch(error => showToast({ text: `PfpWatcher: ${String(error)}`, variant: "critical" }));
+            }} />
+            <Menu.MenuItem id="pfp-watcher-gallery" label="Open gallery" action={() => openGallery(settings.store.folder)} />
+        </Menu.MenuItem>;
+    },
     start() {
         enabled = true;
         session++;

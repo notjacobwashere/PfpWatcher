@@ -35,16 +35,18 @@
 
 .vc-pfp-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 16px;
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 10px;
 }
 
 .vc-pfp-card {
     display: flex;
     min-width: 0;
     flex-direction: column;
-    gap: 8px;
-    padding: 12px;
+    gap: 5px;
+    padding: 8px;
+    font-size: 12px;
+    line-height: 1.35;
     background: var(--background-base-low, var(--background-secondary));
     border: 1px solid var(--border-subtle, var(--background-modifier-accent));
     border-radius: 8px;
@@ -68,7 +70,10 @@
 
 .vc-pfp-filename {
     color: var(--text-muted);
-    font-size: 11px;
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .vc-pfp-card button {
