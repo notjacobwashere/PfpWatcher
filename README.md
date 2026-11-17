@@ -2,7 +2,7 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.3.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.4.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Install or upgrade
 
@@ -74,3 +74,20 @@ The gallery uses smaller 130px tiles and 24 pictures per page. The user picker r
 
 Open the top-right Vencord Toolbox button, then PfpWatcher, for Rescan tracked users and Open gallery. VencordToolbox is a required dependency. Rescan reports progress and results using Discord toasts.
 
+
+### Optional convenience settings
+
+- **Show watch menu** (on by default): right-click a user to watch or stop watching them. Adding a user saves their ID and checks the tracked list immediately.
+- **Show Save PFP menu** (on by default): right-click a user → **Save PFP** to fetch and archive their current global avatar once, including username and collection time. This does not add the user to the watched list or change existing watching. Saved pictures appear in the gallery and follow the same deduplication and optional cleanup rules. Default Discord avatars are excluded. This toggle is independent of the watch menu.
+- **Notify avatar changes** (off by default): an in-app toast when a tracked user's avatar differs from the last observed avatar. The first collection establishes a baseline without notifying. Discord must be open and receive the change, or a check must detect it. No operating-system notification is sent.
+- **Automatic cleanup** (off by default): after a new image is saved, permanently delete the oldest archive images above **Maximum saved avatars** (default 1000, range 1–100000). The limit covers all users in the selected archive folder. Matching metadata is removed too; unrelated files are preserved. Changing the limit takes effect on the next new save.
+
+These settings add no extra installation steps. Automatic cleanup and change notifications are off by default.
+
+## Beta 4 validation
+
+Desktop development build and TypeScript checking pass against Vencord revision d07030c0968e31e41caa0c35fda0ef8ae63a079e. Eleven functional tests cover manual Save PFP, watch/unwatch controls, duplicate IDs and aliases, timer validation and changes, live collection, notifications, disabled-session cancellation, and native archive cleanup using disposable test files. Discord Canary startup and a complete scan of 30 tracked accounts were verified after installation. Live right-click menu interactions were not manually exercised in this session.
+
+Adding a watched user during an existing scan now waits for that scan before checking the updated list. Remembered aliases use the correct Watch/Stop watching label. Queued saves recheck the active session, destination folder, and tracking status; disabling the plugin prevents queued work and prevents cleanup or change notifications after an in-progress download finishes.
+
+Release downloads contain plugin source, README, changelog, and license. Tests and development files are excluded.

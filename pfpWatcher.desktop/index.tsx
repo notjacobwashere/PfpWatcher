@@ -4,6 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { NavContextMenuPatchCallback } from "@api/ContextMenu";
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { Button } from "@components/Button";
@@ -19,6 +20,38 @@ import { watchAvatarResources } from "./watch";
 
 const logger = new Logger("PfpWatcher");
 const settings = definePluginSettings({
+    showWatchMenu: {
+        type: OptionType.BOOLEAN,
+        description: "Show Watch this user / Stop watching in user right-click menus.",
+        default: true
+    },
+    showSavePfpMenu: {
+        displayName: "Show Save PFP menu",
+        type: OptionType.BOOLEAN,
+        description: "Show Save PFP in user right-click menus. Saves once without adding the user to automatic watching.",
+        default: true
+    },
+    notifyAvatarChanges: {
+        type: OptionType.BOOLEAN,
+        description: "Show an in-app notification when a tracked user's avatar changes after their initial collection.",
+        default: false
+    },
+    autoCleanup: {
+        type: OptionType.BOOLEAN,
+        description: "Delete the oldest collected pictures after saving a new picture when the archive exceeds the limit. Deletion is permanent.",
+        default: false
+    },
+    maxSavedAvatars: {
+        type: OptionType.NUMBER,
+        description: "Maximum pictures across the entire archive when automatic cleanup is enabled (1–100000). Applied on the next save.",
+        default: 1000,
+        min: 1,
+        max: 100000,
+        isValid: value => {
+            const number = typeof value === "number" ? value : typeof value === "string" && /^\d+$/.test(value.trim()) ? Number(value) : NaN;
+            return Number.isInteger(number) && number >= 1 && number <= 100000 || "Enter a whole number from 1 to 100000.";
+        }
+    },
     users: {
         type: OptionType.STRING,
         description: "Usernames or user IDs to track, separated by commas (no display names).",
@@ -68,6 +101,89 @@ let session = 0;
 let stopWatching: (() => void) | undefined;
 let observedQueue: Promise<void> = Promise.resolve();
 const observed = new Set<string>();
+let rememberedUsers: Record<string, string> = {};
+let saveQueue: Promise<unknown> = Promise.resolve();
+
+function isWatching(id: string, username?: string) {
+    return settings.store.users.split(/[,\n]/).some(value => {
+        const entry = value.trim().replace(/^@/, "");
+        return entry === id || rememberedUsers[entry] === id
+            || Boolean(username && entry.toLowerCase() === username.toLowerCase());
+    });
+}
+
+function saveTrackedAvatar(folder: string, id: string, hash: string, username: string, currentSession: number, tracked = true) {
+    const task = saveQueue.catch(() => {}).then(async () => {
+        const canceled = () => !enabled || session !== currentSession || settings.store.folder !== folder
+            || (tracked && !isWatching(id, username));
+        if (canceled()) return { saved: false };
+        const key = `PfpWatcher.lastAvatar:${folder}:${id}`;
+        const previous = tracked ? await DataStore.get<string>(key) : undefined;
+        if (canceled()) return { saved: false };
+        const result = await Native.saveAvatar(folder, id, hash, username);
+        if (canceled()) return result;
+        if (tracked) await DataStore.set(key, hash);
+        if (previous && previous !== hash && enabled && session === currentSession && settings.store.notifyAvatarChanges)
+            showToast({ text: `PfpWatcher: ${username || id} changed their avatar.` });
+        if (result.saved && settings.store.autoCleanup) {
+            try { await Native.pruneAvatars(folder, settings.store.maxSavedAvatars); }
+            catch (error) { logger.error("Archive cleanup failed", error); }
+        }
+        return result;
+    });
+    saveQueue = task;
+    return task;
+}
+
+const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
+    if (!enabled || !user || !/^\d{17,20}$/.test(user.id)) return;
+    if (settings.store.showSavePfpMenu) children.push(<Menu.MenuItem id="pfp-watcher-save" label="Save PFP" action={async () => {
+        if (!enabled || !settings.store.showSavePfpMenu) return;
+        const currentSession = session;
+        const folder = settings.store.folder;
+        try {
+            const { body } = await RestAPI.get({ url: `/users/${user.id}` });
+            if (!enabled || session !== currentSession) return;
+            if (body.id !== user.id) throw new Error("Unexpected user response");
+            if (!body.avatar) {
+                showToast({ text: "PfpWatcher: This user has no custom avatar to save." });
+                return;
+            }
+            const result = await saveTrackedAvatar(folder, user.id, body.avatar, body.username, currentSession, false);
+            if (!enabled || session !== currentSession) return;
+            showToast({ text: `PfpWatcher: ${result.saved ? "Saved PFP for" : "PFP already saved for"} ${body.username || user.id}.` });
+        } catch (error) {
+            logger.error("Could not save PFP", error);
+            showToast({ text: `PfpWatcher: Could not save PFP. ${String(error)}`, variant: "critical" });
+        }
+    }} />);
+    if (!settings.store.showWatchMenu) return;
+    const watching = isWatching(user.id, user.username);
+    children.push(<Menu.MenuItem id="pfp-watcher-watch" label={watching ? "Stop watching this user" : "Watch this user"} action={async () => {
+        if (!enabled || !settings.store.showWatchMenu) return;
+        const currentSession = session;
+        try {
+            const remembered = await DataStore.get<Record<string, string>>("PfpWatcher.users") ?? {};
+            if (!enabled || session !== currentSession || !settings.store.showWatchMenu) return;
+            rememberedUsers = remembered;
+            const entries = settings.store.users.split(/[,\n]/).map(s => s.trim().replace(/^@/, "")).filter(Boolean);
+            const matches = (entry: string) => entry === user.id || remembered[entry] === user.id
+                || entry.toLowerCase() === user.username?.toLowerCase();
+            const watching = entries.some(matches);
+            settings.store.users = (watching ? entries.filter(entry => !matches(entry)) : [...entries, user.id]).join(", ");
+            observed.clear();
+            showToast({ text: `PfpWatcher: ${watching ? "Stopped watching" : "Now watching"} ${user.username || user.id}.` });
+            if (!watching) {
+                // A current scan uses a snapshot; wait before checking the updated list.
+                if (running) await running.catch(() => {});
+                if (enabled && session === currentSession) await checkNow();
+            }
+        } catch (error) {
+            logger.error("Could not update watched users", error);
+            showToast({ text: "PfpWatcher: Could not update watched users.", variant: "critical" });
+        }
+    }} />);
+};
 
 async function collectObservedAvatar(id: string, hash: string, username?: string) {
     if (!enabled || !settings.store.collectOnDiscordLoad || !UserStore.getCurrentUser()) return;
@@ -76,6 +192,7 @@ async function collectObservedAvatar(id: string, hash: string, username?: string
     const folder = settings.store.folder;
     const entries = settings.store.users.split(/[,\n]/).map(s => s.trim().replace(/^@/, "")).filter(Boolean);
     const remembered = await DataStore.get<Record<string, string>>("PfpWatcher.users") ?? {};
+    rememberedUsers = remembered;
     const user = UserStore.getUser(id);
     if (!entries.some(entry => entry === id || remembered[entry] === id
         || (user?.username && entry.toLowerCase() === user.username.toLowerCase()))) return;
@@ -88,7 +205,7 @@ async function collectObservedAvatar(id: string, hash: string, username?: string
             return;
         }
         try {
-            const result = await Native.saveAvatar(folder, id, hash, username ?? user?.username ?? "");
+            const result = await saveTrackedAvatar(folder, id, hash, username ?? user?.username ?? "", currentSession);
             if (result.saved) logger.info(`Saved observed avatar for ${id}`);
         } catch (error) {
             observed.delete(key);
@@ -118,6 +235,7 @@ async function checkUsers() {
     const entries = [...new Set(settings.store.users.split(/[,\n]/).map(s => s.trim().replace(/^@/, "")).filter(Boolean))];
     const { folder } = settings.store;
     const remembered = await DataStore.get<Record<string, string>>("PfpWatcher.users") ?? {};
+    rememberedUsers = remembered;
     let saved = 0;
     let existing = 0;
     let missing = 0;
@@ -144,7 +262,7 @@ async function checkUsers() {
             if (!body.avatar) {
                 missing++;
             } else {
-                const result = await Native.saveAvatar(folder, id, body.avatar, body.username);
+                const result = await saveTrackedAvatar(folder, id, body.avatar, body.username, checkSession);
                 if (result.saved) saved++;
                 else existing++;
             }
@@ -193,6 +311,7 @@ export default definePlugin({
     authors: [{ name: "notjacobwashere", id: 0n }],
     dependencies: ["VencordToolbox"],
     settings,
+    contextMenus: { "user-context": userContextMenu },
     toolboxActions() {
         return <Menu.MenuItem id="pfp-watcher-menu" label="PfpWatcher">
             <Menu.MenuItem id="pfp-watcher-rescan" label="Rescan tracked users" action={() => {

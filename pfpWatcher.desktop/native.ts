@@ -193,3 +193,21 @@ export async function saveAvatar(_: unknown, folder: string, id: string, hash: s
     }
     return { saved: true, path };
 }
+
+export async function pruneAvatars(_: unknown, folder: string, maximum: number) {
+    if (!Number.isInteger(maximum) || maximum < 1 || maximum > 100000)
+        throw new Error("Invalid archive limit");
+    const directory = getFolder(folder);
+    const avatars = (await listAvatars(null, folder)).sort((a, b) => b.collectedAt - a.collectedAt || a.filename.localeCompare(b.filename));
+    let removed = 0;
+    for (const avatar of avatars.slice(maximum)) {
+        // Only remove validated archive images, never unrelated files or directories.
+        const { path } = await avatarFile(folder, avatar.filename);
+        await unlink(path);
+        await unlink(join(directory, ".pfp-watcher", `${avatar.filename}.json`)).catch(error => {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        });
+        removed++;
+    }
+    return removed;
+}
