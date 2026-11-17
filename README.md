@@ -2,7 +2,7 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.4.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.5.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Install or upgrade
 
@@ -77,8 +77,8 @@ Open the top-right Vencord Toolbox button, then PfpWatcher, for Rescan tracked u
 
 ### Optional convenience settings
 
-- **Show watch menu** (on by default): right-click a user to watch or stop watching them. Adding a user saves their ID and checks the tracked list immediately.
-- **Show Save PFP menu** (on by default): right-click a user → **Save PFP** to fetch and archive their current global avatar once, including username and collection time. This does not add the user to the watched list or change existing watching. Saved pictures appear in the gallery and follow the same deduplication and optional cleanup rules. Default Discord avatars are excluded. This toggle is independent of the watch menu.
+- **Show watch menu** (on by default): right-click a user to watch them. Already-watched users show a disabled **Already watching this user** action; repeated Track clicks do nothing. A separate **Stop watching this user** action removes them. Adding a user saves their ID and checks the updated tracked list.
+- **Show Save PFP menu** (on by default): right-click a user → **Save PFP** to fetch and archive their current global avatar once, including username and collection time. This does not add the user to the watched list or change existing watching. If the picture is already saved, a warning offers **Cancel** or **Continue anyway**. Cancel leaves the archive unchanged. Continue downloads a separate copy with a unique filename, without overwriting existing files. Copies appear in the gallery and count toward optional cleanup. Automatic checks continue to skip avatars already present, including copies. Default Discord avatars are excluded. This toggle is independent of the watch menu.
 - **Notify avatar changes** (off by default): an in-app toast when a tracked user's avatar differs from the last observed avatar. The first collection establishes a baseline without notifying. Discord must be open and receive the change, or a check must detect it. No operating-system notification is sent.
 - **Automatic cleanup** (off by default): after a new image is saved, permanently delete the oldest archive images above **Maximum saved avatars** (default 1000, range 1–100000). The limit covers all users in the selected archive folder. Matching metadata is removed too; unrelated files are preserved. Changing the limit takes effect on the next new save.
 
@@ -91,3 +91,13 @@ Desktop development build and TypeScript checking pass against Vencord revision 
 Adding a watched user during an existing scan now waits for that scan before checking the updated list. Remembered aliases use the correct Watch/Stop watching label. Queued saves recheck the active session, destination folder, and tracking status; disabling the plugin prevents queued work and prevents cleanup or change notifications after an in-progress download finishes.
 
 Release downloads contain plugin source, README, changelog, and license. Tests and development files are excluded.
+
+## Beta 5 behavior
+
+- Tracking is idempotent: an already-watched ID, matching username, or remembered alias is not added again, rescanned, or toggled off. The right-click menu uses a disabled Already watching action and a separate Stop watching action.
+- Save PFP checks whether that avatar is already archived and shows a warning with Cancel and Continue anyway. Continue downloads an additional copy; Cancel makes no archive changes. A concurrent automatic save between checking and saving also triggers the warning.
+- Additional copies use `<userID>_<avatarHash>_copy_<UUID>.png` or `.gif`. The original image and collection timestamp are not overwritten. The gallery recognizes these files and their metadata. Optional automatic cleanup still applies to the entire collection and may remove older pictures above your chosen limit.
+- If the canonical image is removed but an additional copy remains, automatic collection still recognizes that avatar as already archived.
+- Disabling the plugin or changing its destination while a duplicate dialog is open cancels the pending save.
+
+Validation: desktop development build, TypeScript checking, and 16 functional tests passed. These include duplicate tracking clicks, duplicate-save confirmation and cancellation, PNG/GIF additional copies, gallery-readable filenames, existing-image preservation, and cleanup compatibility. Live right-click/dialog interaction was not manually exercised in this session.

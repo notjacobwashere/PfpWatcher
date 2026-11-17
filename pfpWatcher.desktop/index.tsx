@@ -9,6 +9,7 @@ import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { Button } from "@components/Button";
 import ErrorBoundary from "@components/ErrorBoundary";
+import { confirmAction } from "@utils/discord";
 import { Logger } from "@utils/Logger";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
@@ -112,7 +113,7 @@ function isWatching(id: string, username?: string) {
     });
 }
 
-function saveTrackedAvatar(folder: string, id: string, hash: string, username: string, currentSession: number, tracked = true) {
+function saveTrackedAvatar(folder: string, id: string, hash: string, username: string, currentSession: number, tracked = true, saveCopy = false) {
     const task = saveQueue.catch(() => {}).then(async () => {
         const canceled = () => !enabled || session !== currentSession || settings.store.folder !== folder
             || (tracked && !isWatching(id, username));
@@ -120,7 +121,7 @@ function saveTrackedAvatar(folder: string, id: string, hash: string, username: s
         const key = `PfpWatcher.lastAvatar:${folder}:${id}`;
         const previous = tracked ? await DataStore.get<string>(key) : undefined;
         if (canceled()) return { saved: false };
-        const result = await Native.saveAvatar(folder, id, hash, username);
+        const result = await Native.saveAvatar(folder, id, hash, username, saveCopy);
         if (canceled()) return result;
         if (tracked) await DataStore.set(key, hash);
         if (previous && previous !== hash && enabled && session === currentSession && settings.store.notifyAvatarChanges)
@@ -149,9 +150,26 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
                 showToast({ text: "PfpWatcher: This user has no custom avatar to save." });
                 return;
             }
-            const result = await saveTrackedAvatar(folder, user.id, body.avatar, body.username, currentSession, false);
-            if (!enabled || session !== currentSession) return;
-            showToast({ text: `PfpWatcher: ${result.saved ? "Saved PFP for" : "PFP already saved for"} ${body.username || user.id}.` });
+            const active = () => enabled && session === currentSession && settings.store.folder === folder && settings.store.showSavePfpMenu;
+            const confirmCopy = () => confirmAction({
+                title: "PFP already saved",
+                subtitle: `This profile picture for ${body.username || user.id} is already in your collection. Continue anyway to download an additional copy without overwriting existing files. Your optional archive cleanup limit still applies.`,
+                confirmText: "Continue anyway",
+                cancelText: "Cancel"
+            });
+            let saveCopy = await Native.hasAvatar(folder, user.id, body.avatar);
+            if (!active()) return;
+            if (saveCopy && !await confirmCopy()) return;
+            if (!active()) return;
+            let result = await saveTrackedAvatar(folder, user.id, body.avatar, body.username, currentSession, false, saveCopy);
+            // A concurrent automatic save may have archived it since the existence check.
+            if (!result.saved && !saveCopy && active()) {
+                if (!await confirmCopy() || !active()) return;
+                saveCopy = true;
+                result = await saveTrackedAvatar(folder, user.id, body.avatar, body.username, currentSession, false, true);
+            }
+            if (!active()) return;
+            showToast({ text: `PfpWatcher: ${saveCopy ? "Saved an additional PFP copy for" : "Saved PFP for"} ${body.username || user.id}.` });
         } catch (error) {
             logger.error("Could not save PFP", error);
             showToast({ text: `PfpWatcher: Could not save PFP. ${String(error)}`, variant: "critical" });
@@ -159,7 +177,7 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
     }} />);
     if (!settings.store.showWatchMenu) return;
     const watching = isWatching(user.id, user.username);
-    children.push(<Menu.MenuItem id="pfp-watcher-watch" label={watching ? "Stop watching this user" : "Watch this user"} action={async () => {
+    const setWatching = async (add: boolean) => {
         if (!enabled || !settings.store.showWatchMenu) return;
         const currentSession = session;
         try {
@@ -170,10 +188,11 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
             const matches = (entry: string) => entry === user.id || remembered[entry] === user.id
                 || entry.toLowerCase() === user.username?.toLowerCase();
             const watching = entries.some(matches);
-            settings.store.users = (watching ? entries.filter(entry => !matches(entry)) : [...entries, user.id]).join(", ");
+            if (add === watching) return;
+            settings.store.users = (add ? [...entries, user.id] : entries.filter(entry => !matches(entry))).join(", ");
             observed.clear();
-            showToast({ text: `PfpWatcher: ${watching ? "Stopped watching" : "Now watching"} ${user.username || user.id}.` });
-            if (!watching) {
+            showToast({ text: `PfpWatcher: ${add ? "Now watching" : "Stopped watching"} ${user.username || user.id}.` });
+            if (add) {
                 // A current scan uses a snapshot; wait before checking the updated list.
                 if (running) await running.catch(() => {});
                 if (enabled && session === currentSession) await checkNow();
@@ -182,7 +201,9 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
             logger.error("Could not update watched users", error);
             showToast({ text: "PfpWatcher: Could not update watched users.", variant: "critical" });
         }
-    }} />);
+    };
+    children.push(<Menu.MenuItem id="pfp-watcher-watch" label={watching ? "Already watching this user" : "Watch this user"} disabled={watching} action={() => setWatching(true)} />);
+    if (watching) children.push(<Menu.MenuItem id="pfp-watcher-unwatch" label="Stop watching this user" action={() => setWatching(false)} />);
 };
 
 async function collectObservedAvatar(id: string, hash: string, username?: string) {

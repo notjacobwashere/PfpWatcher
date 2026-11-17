@@ -33,7 +33,7 @@ function getFolder(folder: string) {
 }
 
 function parseFilename(filename: string) {
-    const match = /^(\d{17,20})_((?:a_)?[a-f0-9]{32})\.(png|gif)$/.exec(filename);
+    const match = /^(\d{17,20})_((?:a_)?[a-f0-9]{32})(?:_copy_[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})?\.(png|gif)$/.exec(filename);
     if (!match || (match[2].startsWith("a_") ? "gif" : "png") !== match[3])
         throw new Error("Invalid archived avatar filename");
     return { userId: match[1], animated: match[3] === "gif" };
@@ -136,21 +136,46 @@ export async function showAvatarInFolder(_: unknown, folder: string, filename: s
     shell.showItemInFolder(path);
 }
 
-export async function saveAvatar(_: unknown, folder: string, id: string, hash: string, username = "") {
+async function findAvatar(folder: string, id: string, hash: string) {
+    if (!/^\d{17,20}$/.test(id) || !/^(a_)?[a-f0-9]{32}$/.test(hash))
+        throw new Error("Invalid avatar identity");
+    const extension = hash.startsWith("a_") ? "gif" : "png";
+    const canonical = `${id}_${hash}.${extension}`;
+    try { return { ...await avatarFile(folder, canonical), filename: canonical }; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    let filenames: string[];
+    try { filenames = await readdir(getFolder(folder)); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return; throw error; }
+    for (const filename of filenames) {
+        if (!filename.startsWith(`${id}_${hash}_copy_`)) continue;
+        try { parseFilename(filename); } catch { continue; }
+        try { return { ...await avatarFile(folder, filename), filename }; }
+        catch (error) {
+            if ((error as NodeJS.ErrnoException).code && (error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+    }
+}
+
+export async function hasAvatar(_: unknown, folder: string, id: string, hash: string) {
+    return Boolean(await findAvatar(folder, id, hash));
+}
+
+export async function saveAvatar(_: unknown, folder: string, id: string, hash: string, username = "", saveCopy = false) {
     if (!/^\d{17,20}$/.test(id) || !/^(a_)?[a-f0-9]{32}$/.test(hash))
         throw new Error("Invalid avatar identity");
     if (typeof username !== "string" || username.length > 100) throw new Error("Invalid username");
+    if (typeof saveCopy !== "boolean") throw new Error("Invalid copy option");
     const extension = hash.startsWith("a_") ? "gif" : "png";
     const directory = getFolder(folder);
-    const filename = `${id}_${hash}.${extension}`;
+    const filename = `${id}_${hash}${saveCopy ? `_copy_${randomUUID()}` : ""}.${extension}`;
     const path = join(directory, filename);
     await mkdir(directory, { recursive: true });
-    try {
-        const { file } = await avatarFile(folder, filename);
-        await rememberAvatar(directory, filename, username, file.mtimeMs, true);
-        return { saved: false, path };
-    } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    if (!saveCopy) {
+        const existing = await findAvatar(folder, id, hash);
+        if (existing) {
+            await rememberAvatar(directory, existing.filename, username, existing.file.mtimeMs, true);
+            return { saved: false, path: existing.path };
+        }
     }
     const response = await net.fetch(`https://cdn.discordapp.com/avatars/${id}/${hash}.${extension}?size=4096`, {
         redirect: "error",

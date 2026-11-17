@@ -1,5 +1,15 @@
 # Changelog
 
+## v0.2.0-beta.5
+
+- Make Track idempotent for IDs, usernames, and remembered aliases. Repeated clicks do not add, rescan, or stop watching a user.
+- Display a disabled Already watching action and a separate Stop watching action.
+- Warn before manually saving an already-archived avatar, with Cancel and Continue anyway.
+- Continue saves an additional uniquely named PNG/GIF copy without overwriting existing images or their collection timestamps.
+- Include intentional copies in gallery browsing, picture counts, and optional cleanup. Automatic collection still skips already-archived avatars, even if only a copy remains.
+- Handle concurrent automatic saves and cancellation while the duplicate dialog is open.
+
+Validation: desktop development build, TypeScript checking, and 16 functional tests passed. Live right-click/dialog interactions remain unverified in this session.
 ## v0.2.0-beta.4
 
 - Add Save PFP to user right-click menus to archive the current global avatar once without changing automatic watching.
