@@ -91,6 +91,30 @@ export async function openFolder(_: unknown, folder: string) {
     if (error) throw new Error(error);
 }
 
+export async function getFolderSize(_: unknown, folder: string) {
+    const pending = [getFolder(folder)];
+    let bytes = 0;
+    while (pending.length) {
+        const directory = pending.pop()!;
+        try {
+            const entries = await readdir(directory);
+            for (const entry of entries) {
+                const path = join(directory, entry);
+                try {
+                    const file = await lstat(path);
+                    if (file.isDirectory()) pending.push(path);
+                    else if (file.isFile()) bytes += file.size;
+                } catch (error) {
+                    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+                }
+            }
+        } catch (error) {
+            if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+        }
+    }
+    return bytes;
+}
+
 export async function listAvatars(_: unknown, folder: string): Promise<ArchivedAvatar[]> {
     const directory = getFolder(folder);
     let filenames: string[];

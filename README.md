@@ -2,7 +2,7 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.5.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.6.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Install or upgrade
 
@@ -77,8 +77,8 @@ Open the top-right Vencord Toolbox button, then PfpWatcher, for Rescan tracked u
 
 ### Optional convenience settings
 
-- **Show watch menu** (on by default): right-click a user to watch them. Already-watched users show a disabled **Already watching this user** action; repeated Track clicks do nothing. A separate **Stop watching this user** action removes them. Adding a user saves their ID and checks the updated tracked list.
-- **Show Save PFP menu** (on by default): right-click a user → **Save PFP** to fetch and archive their current global avatar once, including username and collection time. This does not add the user to the watched list or change existing watching. If the picture is already saved, a warning offers **Cancel** or **Continue anyway**. Cancel leaves the archive unchanged. Continue downloads a separate copy with a unique filename, without overwriting existing files. Copies appear in the gallery and count toward optional cleanup. Automatic checks continue to skip avatars already present, including copies. Default Discord avatars are excluded. This toggle is independent of the watch menu.
+- **Show watch menu** (on by default): right-click a user to watch them. Inside the **PFPWatcher** submenu, tracked users show only **Stop watching this user**, and untracked users show **Watch this user**. Repeated Track clicks still do nothing. Adding a user saves their ID and checks the updated tracked list.
+- **Show Save PFP menu** (on by default): right-click a user → **PFPWatcher → Save PFP** to fetch and archive their current global avatar once, including username and collection time. This does not add the user to the watched list or change existing watching. If the picture is already saved, a warning offers **Cancel** or **Continue anyway**. Cancel leaves the archive unchanged. Continue downloads a separate copy with a unique filename, without overwriting existing files. Copies appear in the gallery and count toward optional cleanup. Automatic checks continue to skip avatars already present, including copies. Default Discord avatars are excluded. This toggle is independent of the watch menu.
 - **Notify avatar changes** (off by default): an in-app toast when a tracked user's avatar differs from the last observed avatar. The first collection establishes a baseline without notifying. Discord must be open and receive the change, or a check must detect it. No operating-system notification is sent.
 - **Automatic cleanup** (off by default): after a new image is saved, permanently delete the oldest archive images above **Maximum saved avatars** (default 1000, range 1–100000). The limit covers all users in the selected archive folder. Matching metadata is removed too; unrelated files are preserved. Changing the limit takes effect on the next new save.
 
@@ -94,10 +94,18 @@ Release downloads contain plugin source, README, changelog, and license. Tests a
 
 ## Beta 5 behavior
 
-- Tracking is idempotent: an already-watched ID, matching username, or remembered alias is not added again, rescanned, or toggled off. The right-click menu uses a disabled Already watching action and a separate Stop watching action.
+- Tracking is idempotent: an already-watched ID, matching username, or remembered alias is not added again, rescanned, or toggled off. The current right-click menu only shows Stop watching for tracked users and Watch this user for untracked users.
 - Save PFP checks whether that avatar is already archived and shows a warning with Cancel and Continue anyway. Continue downloads an additional copy; Cancel makes no archive changes. A concurrent automatic save between checking and saving also triggers the warning.
 - Additional copies use `<userID>_<avatarHash>_copy_<UUID>.png` or `.gif`. The original image and collection timestamp are not overwritten. The gallery recognizes these files and their metadata. Optional automatic cleanup still applies to the entire collection and may remove older pictures above your chosen limit.
 - If the canonical image is removed but an additional copy remains, automatic collection still recognizes that avatar as already archived.
 - Disabling the plugin or changing its destination while a duplicate dialog is open cancels the pending save.
 
 Validation: desktop development build, TypeScript checking, and 16 functional tests passed. These include duplicate tracking clicks, duplicate-save confirmation and cancellation, PNG/GIF additional copies, gallery-readable filenames, existing-image preservation, and cleanup compatibility. Live right-click/dialog interaction was not manually exercised in this session.
+
+## Beta 6 menu and storage display
+
+All user-context actions are grouped under **PFPWatcher**, directly after **Copy User URL**. If Copy User URL is unavailable, the submenu appears at the bottom. The redundant Already watching item has been removed: tracked users show Stop watching, and untracked users show Watch this user. The Save PFP and watch-menu visibility toggles still work independently; no empty submenu is shown when both are off.
+
+The gallery shows **Folder size: X.XX MB** at its top right. This measures the total logical size of regular files in the configured folder and its subfolders, including avatar copies, metadata, and any other files kept there. Symbolic links are excluded. One MB is 1,000,000 bytes. The total is independent of user filtering and pagination and updates with Refresh. Size-calculation errors show Unavailable with details in the tooltip without blocking the gallery.
+
+Beta 6 passes a desktop development build, TypeScript checking, and 20 functional tests, including real-world mixed menu children, submenu placement, conditional watch actions, recursive folder totals, gallery formatting, refresh, and size-error handling. Tests and development files remain excluded from release downloads.

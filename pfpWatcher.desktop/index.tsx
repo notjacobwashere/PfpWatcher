@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { NavContextMenuPatchCallback } from "@api/ContextMenu";
+import { addGlobalContextMenuPatch, findGroupChildrenByChildId, GlobalContextMenuPatchCallback, NavContextMenuPatchCallback, removeGlobalContextMenuPatch } from "@api/ContextMenu";
 import * as DataStore from "@api/DataStore";
 import { definePluginSettings } from "@api/Settings";
 import { Button } from "@components/Button";
@@ -14,6 +14,7 @@ import { Logger } from "@utils/Logger";
 import { sleep } from "@utils/misc";
 import definePlugin, { OptionType } from "@utils/types";
 import { Menu, RestAPI, showToast, UserStore, useState } from "@webpack/common";
+import type { ReactElement } from "react";
 
 import { Native } from "./bridge";
 import { openGallery } from "./Gallery";
@@ -138,7 +139,8 @@ function saveTrackedAvatar(folder: string, id: string, hash: string, username: s
 
 const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
     if (!enabled || !user || !/^\d{17,20}$/.test(user.id)) return;
-    if (settings.store.showSavePfpMenu) children.push(<Menu.MenuItem id="pfp-watcher-save" label="Save PFP" action={async () => {
+    const items: ReactElement[] = [];
+    if (settings.store.showSavePfpMenu) items.push(<Menu.MenuItem id="pfp-watcher-save" label="Save PFP" action={async () => {
         if (!enabled || !settings.store.showSavePfpMenu) return;
         const currentSession = session;
         const folder = settings.store.folder;
@@ -175,7 +177,6 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
             showToast({ text: `PfpWatcher: Could not save PFP. ${String(error)}`, variant: "critical" });
         }
     }} />);
-    if (!settings.store.showWatchMenu) return;
     const watching = isWatching(user.id, user.username);
     const setWatching = async (add: boolean) => {
         if (!enabled || !settings.store.showWatchMenu) return;
@@ -202,8 +203,20 @@ const userContextMenu: NavContextMenuPatchCallback = (children, { user }) => {
             showToast({ text: "PfpWatcher: Could not update watched users.", variant: "critical" });
         }
     };
-    children.push(<Menu.MenuItem id="pfp-watcher-watch" label={watching ? "Already watching this user" : "Watch this user"} disabled={watching} action={() => setWatching(true)} />);
-    if (watching) children.push(<Menu.MenuItem id="pfp-watcher-unwatch" label="Stop watching this user" action={() => setWatching(false)} />);
+    if (settings.store.showWatchMenu) {
+        if (watching) items.push(<Menu.MenuItem id="pfp-watcher-unwatch" label="Stop watching this user" action={() => setWatching(false)} />);
+        else items.push(<Menu.MenuItem id="pfp-watcher-watch" label="Watch this user" action={() => setWatching(true)} />);
+    }
+    if (!items.length) return;
+    const submenu = <Menu.MenuItem id="pfp-watcher-context" label="PFPWatcher">{items}</Menu.MenuItem>;
+    const group = findGroupChildrenByChildId("vc-copy-user-url", children);
+    if (group) group.splice(group.findIndex(item => item?.props?.id === "vc-copy-user-url") + 1, 0, submenu);
+    else children.push(submenu);
+};
+
+// Global patches run after named-menu patches, including CopyUserURLs.
+const userContextMenuPatch: GlobalContextMenuPatchCallback = (navId, children, ...args) => {
+    if (navId === "user-context" && args[0]?.user) userContextMenu(children, ...args);
 };
 
 async function collectObservedAvatar(id: string, hash: string, username?: string) {
@@ -332,7 +345,6 @@ export default definePlugin({
     authors: [{ name: "notjacobwashere", id: 0n }],
     dependencies: ["VencordToolbox"],
     settings,
-    contextMenus: { "user-context": userContextMenu },
     toolboxActions() {
         return <Menu.MenuItem id="pfp-watcher-menu" label="PfpWatcher">
             <Menu.MenuItem id="pfp-watcher-rescan" label="Rescan tracked users" action={() => {
@@ -346,6 +358,7 @@ export default definePlugin({
     start() {
         enabled = true;
         session++;
+        addGlobalContextMenuPatch(userContextMenuPatch);
         configureAvatarWatcher();
         configureCollectionTimer(settings.store.collectEvery30Minutes);
         startupChecked = false;
@@ -353,6 +366,7 @@ export default definePlugin({
     },
     stop() {
         enabled = false;
+        removeGlobalContextMenuPatch(userContextMenuPatch);
         session++;
         configureCollectionTimer(false);
         configureAvatarWatcher();

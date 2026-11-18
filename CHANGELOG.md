@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.2.0-beta.6
+
+- Remove the redundant Already watching context-menu item. Tracked users show Stop watching; untracked users show Watch this user.
+- Group Save PFP and watch controls in a PFPWatcher submenu directly below Copy User URL. Fall back to the bottom when that item is unavailable.
+- Position the submenu after named-menu patches so plugin startup order does not affect placement; safely handle mixed and nested menu children.
+- Show the full PFP folder size in MB at the gallery's top right, including metadata and additional copies. Refresh updates the total.
+- Keep the gallery usable if folder-size calculation fails, and exclude symbolic links from the total.
+
+Validation: desktop development build, TypeScript checking, and all 20 functional tests passed.
 ## v0.2.0-beta.5
 
 - Make Track idempotent for IDs, usernames, and remembered aliases. Repeated clicks do not add, rescan, or stop watching a user.

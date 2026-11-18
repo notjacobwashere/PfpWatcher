@@ -2,6 +2,13 @@
     color: var(--text-default, var(--text-normal));
 }
 
+.vc-pfp-summary {
+    margin-bottom: 12px;
+    color: var(--text-muted);
+    font-size: 12px;
+    text-align: right;
+}
+
 .vc-pfp-toolbar {
     display: flex;
     flex-wrap: wrap;

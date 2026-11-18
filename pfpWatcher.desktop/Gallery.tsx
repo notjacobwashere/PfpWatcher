@@ -75,6 +75,18 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
 
+    const [folderBytes, setFolderBytes] = useState<number | null>(null);
+    const [sizeError, setSizeError] = useState("");
+    useEffect(() => {
+        let active = true;
+        setFolderBytes(null);
+        setSizeError("");
+        void Native.getFolderSize(folder).then(bytes => {
+            if (active) setFolderBytes(bytes);
+        }).catch(error => { if (active) setSizeError(String(error)); });
+        return () => { active = false; };
+    }, [folder, revision]);
+
     useEffect(() => {
         let active = true;
         setLoading(true);
@@ -117,6 +129,9 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
 
     return <Modal {...modalProps} size="lg" title="Collected profile pictures" subtitle="Browse the avatars saved in your pfp folder.">
         <div className="vc-pfp-gallery">
+            <div className="vc-pfp-summary" role="status" title={sizeError || "Total size of files in the PFP folder, including metadata and additional copies. Symbolic links are excluded. One MB is 1,000,000 bytes."}>
+                Folder size: {sizeError ? "Unavailable" : folderBytes === null ? "Calculating…" : `${(folderBytes / 1_000_000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MB`}
+            </div>
             <div className="vc-pfp-toolbar">
                 <label>User
                     <select value={selected} disabled={loading} onChange={event => { setSelected(event.target.value); setPage(0); }}>
