@@ -2,6 +2,9 @@
 
 ## v0.2.0-beta.6
 
+- Add a self-contained Windows installer that detects existing Vencord builds, backs up files and settings, enables PfpWatcher, and restarts previously open matching Discord clients.
+- Add payload verification, automatic rollback on failure, and warnings for enabled plugins absent from the bundled build. Installer source and corresponding Vencord build source are provided.
+
 - Remove the redundant Already watching context-menu item. Tracked users show Stop watching; untracked users show Watch this user.
 - Group Save PFP and watch controls in a PFPWatcher submenu directly below Copy User URL. Fall back to the bottom when that item is unavailable.
 - Position the submenu after named-menu patches so plugin startup order does not affect placement; safely handle mixed and nested menu children.

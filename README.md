@@ -2,9 +2,14 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.6.** Requires a custom desktop Vencord build. This is a source plugin, not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.6.** The Windows installer includes the custom desktop Vencord build. Manual source installation is also available. This is not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
-## Install or upgrade
+## Windows automatic installer
+
+Download **PfpWatcher-Setup-v0.2.0-beta.6.exe** from the [beta 6 release](https://github.com/notjacobwashere/PfpWatcher/releases/tag/v0.2.0-beta.6), run it, and click **Install and restart Discord**. The installer detects an existing Vencord installation, backs up its current build and settings, installs and enables PfpWatcher, and restarts Discord if it was already open.
+
+Settings and saved pictures are kept. The bundle includes official Vencord plugins and PfpWatcher; other custom plugins are not included. The installer identifies enabled plugins absent from the bundle before proceeding. It works offline without administrator access or manual build-tool setup. See [installer details, backups, and source](https://github.com/notjacobwashere/PfpWatcher/blob/v0.2.0-beta.6/installer/README.md).
+## Manual source installation
 
 1. Get a [Vencord source checkout](https://docs.vencord.dev/installing/).
 2. Copy the entire `pfpWatcher.desktop` folder into `Vencord/src/userplugins/` (create `userplugins` if necessary). For upgrades, replace the old plugin folder with the new one. Copy all six files, including `Gallery.tsx`, `bridge.ts`, `gallery.css`, and `watch.ts`.
