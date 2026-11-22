@@ -1,6 +1,6 @@
 # Windows installer
 
-Download **PfpWatcher-Setup-v0.2.0-beta.6.exe** from the beta 6 GitHub release and run it. It is a portable installer for an existing desktop Vencord installation on Windows 10/11 with .NET Framework 4.8. No administrator access or manual Node.js/pnpm setup is needed.
+Download **PfpWatcher-Setup-v0.2.0-beta.7.exe** from the beta 7 GitHub release and run it. It is a portable installer for an existing desktop Vencord installation on Windows 10/11 with .NET Framework 4.8. No administrator access or manual Node.js/pnpm setup is needed.
 
 1. The installer detects the Vencord build used by running Discord clients, falling back to the standard `%APPDATA%\Vencord\dist` folder. Browse can select another existing Vencord build folder.
 2. Click **Install and restart Discord**.

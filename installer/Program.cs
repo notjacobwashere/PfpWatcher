@@ -10,9 +10,9 @@ using System.Windows.Forms;
 [assembly: AssemblyTitle("PfpWatcher Setup")]
 [assembly: AssemblyProduct("PfpWatcher")]
 [assembly: AssemblyCompany("notjacobwashere")]
-[assembly: AssemblyDescription("PfpWatcher 0.2.0 Beta 6 Windows installer")]
-[assembly: AssemblyVersion("0.2.0.6")]
-[assembly: AssemblyFileVersion("0.2.0.6")]
+[assembly: AssemblyDescription("PfpWatcher 0.2.0 Beta 7 Windows installer")]
+[assembly: AssemblyVersion("0.2.0.7")]
+[assembly: AssemblyFileVersion("0.2.0.7")]
 
 namespace PfpWatcherSetup {
     public sealed class SetupForm : Form {
@@ -31,7 +31,7 @@ namespace PfpWatcherSetup {
             payload = payloadBytes; info = InstallerCore.ReadPayload(payload);
             userData = Environment.GetEnvironmentVariable("VENCORD_USER_DATA_DIR");
             if (String.IsNullOrWhiteSpace(userData)) userData = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Vencord");
-            Text = "PfpWatcher Setup — Beta 6";
+            Text = "PfpWatcher Setup — Beta 7";
             ClientSize = new Size(650, 415); MinimumSize = new Size(665, 450);
             StartPosition = FormStartPosition.CenterScreen; Font = new Font("Segoe UI", 10);
             var title = new Label { Text = "Install PfpWatcher", Font = new Font("Segoe UI", 19, FontStyle.Bold), AutoSize = true, Location = new Point(24, 20) };

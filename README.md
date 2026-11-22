@@ -2,13 +2,13 @@
 
 Collect selected users' global profile pictures at Discord startup, check at a configurable interval or when Discord loads an avatar, and browse your local collection.
 
-**Prerelease: v0.2.0-beta.6.** The Windows installer includes the custom desktop Vencord build. Manual source installation is also available. This is not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
+**Prerelease: v0.2.0-beta.7.** The Windows installer includes the custom desktop Vencord build. Manual source installation is also available. This is not a BetterDiscord `.plugin.js` file or an official Vencord plugin.
 
 ## Windows automatic installer
 
-Download **PfpWatcher-Setup-v0.2.0-beta.6.exe** from the [beta 6 release](https://github.com/notjacobwashere/PfpWatcher/releases/tag/v0.2.0-beta.6), run it, and click **Install and restart Discord**. The installer detects an existing Vencord installation, backs up its current build and settings, installs and enables PfpWatcher, and restarts Discord if it was already open.
+Download **PfpWatcher-Setup-v0.2.0-beta.7.exe** from the [beta 7 release](https://github.com/notjacobwashere/PfpWatcher/releases/tag/v0.2.0-beta.7), run it, and click **Install and restart Discord**. The installer detects an existing Vencord installation, backs up its current build and settings, installs and enables PfpWatcher, and restarts Discord if it was already open.
 
-Settings and saved pictures are kept. The bundle includes official Vencord plugins and PfpWatcher; other custom plugins are not included. The installer identifies enabled plugins absent from the bundle before proceeding. It works offline without administrator access or manual build-tool setup. See [installer details, backups, and source](https://github.com/notjacobwashere/PfpWatcher/blob/v0.2.0-beta.6/installer/README.md).
+Settings and saved pictures are kept. The bundle includes official Vencord plugins and PfpWatcher; other custom plugins are not included. The installer identifies enabled plugins absent from the bundle before proceeding. It works offline without administrator access or manual build-tool setup. See [installer details, backups, and source](https://github.com/notjacobwashere/PfpWatcher/blob/v0.2.0-beta.7/installer/README.md).
 ## Manual source installation
 
 1. Get a [Vencord source checkout](https://docs.vencord.dev/installing/).
@@ -114,3 +114,9 @@ All user-context actions are grouped under **PFPWatcher**, directly after **Copy
 The gallery shows **Folder size: X.XX MB** at its top right. This measures the total logical size of regular files in the configured folder and its subfolders, including avatar copies, metadata, and any other files kept there. Symbolic links are excluded. One MB is 1,000,000 bytes. The total is independent of user filtering and pagination and updates with Refresh. Size-calculation errors show Unavailable with details in the tooltip without blocking the gallery.
 
 Beta 6 passes a desktop development build, TypeScript checking, and 20 functional tests, including real-world mixed menu children, submenu placement, conditional watch actions, recursive folder totals, gallery formatting, refresh, and size-error handling. Tests and development files remain excluded from release downloads.
+
+## Beta 7
+
+Right-click a user and choose **PFPWatcher → Open this user's PFPs** to open their archive. The gallery stays filtered even if they have no saved pictures yet. The shortcut can be hidden in plugin settings.
+
+Folder size is cached during the session and updated when PfpWatcher saves images or removes them during optional cleanup. Use Refresh to pick up external changes. Downloads stream to temporary files, and original image quality is preserved. The watch list and last-seen avatar cache reduce storage activity, and archive cleanup checks the count before loading metadata.

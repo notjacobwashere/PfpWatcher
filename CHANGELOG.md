@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.2.0-beta.7
+
+- Open a user's archive from their right-click menu under **PFPWatcher → Open this user's PFPs**.
+- Cache the folder-size total and adjust it after saves and cleanup. Refresh rechecks external changes.
+- Cache tracked IDs and skip unchanged writes to storage.
+- Stream downloads into temporary files while keeping full-resolution originals.
+- Batch scheduled cleanup and check the archive count before scanning image metadata.
+
 ## v0.2.0-beta.6
 
 - Add a self-contained Windows installer that detects existing Vencord builds, backs up files and settings, enables PfpWatcher, and restarts previously open matching Discord clients.

@@ -38,7 +38,7 @@ namespace PfpWatcherSetup {
                 if (entry == null) throw new InvalidDataException("The installer payload has no manifest.");
                 PayloadInfo info;
                 using (var reader = new StreamReader(entry.Open())) info = Json.Deserialize<PayloadInfo>(reader.ReadToEnd());
-                if (info == null || info.Version != "0.2.0-beta.6" || info.Files == null || info.Files.Count == 0)
+                if (info == null || info.Version != "0.2.0-beta.7" || info.Files == null || info.Files.Count == 0)
                     throw new InvalidDataException("Invalid installer manifest.");
                 var required = new[] { "patcher.js", "preload.js", "renderer.js", "renderer.css", "vencordDesktopMain.js" };
                 if (required.Any(name => !info.Files.ContainsKey(name))) throw new InvalidDataException("The Vencord build is incomplete.");

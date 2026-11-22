@@ -65,10 +65,10 @@ const AvatarCard = ErrorBoundary.wrap(({ avatar, folder, username }: { avatar: A
     </article>;
 }, { noop: false });
 
-const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: RenderModalProps; folder: string; }) => {
+const Gallery = ErrorBoundary.wrap(({ modalProps, folder, initialUserId = "" }: { modalProps: RenderModalProps; folder: string; initialUserId?: string; }) => {
     const [avatars, setAvatars] = useState<ArchivedAvatar[]>([]);
     const [aliases, setAliases] = useState<Record<string, string>>({});
-    const [selected, setSelected] = useState("");
+    const [selected, setSelected] = useState(initialUserId);
     const [sort, setSort] = useState<SortOrder>("newest");
     const [page, setPage] = useState(0);
     const [revision, setRevision] = useState(0);
@@ -81,7 +81,7 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
         let active = true;
         setFolderBytes(null);
         setSizeError("");
-        void Native.getFolderSize(folder).then(bytes => {
+        void Native.getFolderSize(folder, revision > 0).then(bytes => {
             if (active) setFolderBytes(bytes);
         }).catch(error => { if (active) setSizeError(String(error)); });
         return () => { active = false; };
@@ -102,7 +102,7 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
             }
             setAliases(names);
             setAvatars(records);
-            setSelected(current => records.some(a => a.userId === current) ? current : "");
+            setSelected(current => current === initialUserId || records.some(a => a.userId === current) ? current : "");
             setPage(0);
         }).catch(error => { if (active) setError(String(error)); })
             .finally(() => { if (active) setLoading(false); });
@@ -129,13 +129,14 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
 
     return <Modal {...modalProps} size="lg" title="Collected profile pictures" subtitle="Browse the avatars saved in your pfp folder.">
         <div className="vc-pfp-gallery">
-            <div className="vc-pfp-summary" role="status" title={sizeError || "Total size of files in the PFP folder, including metadata and additional copies. Symbolic links are excluded. One MB is 1,000,000 bytes."}>
+            <div className="vc-pfp-summary" role="status" title={sizeError || "Cached total size of files in the PFP folder, including metadata and copies. Refresh reconciles external changes. Symbolic links and temporary downloads are excluded. One MB is 1,000,000 bytes."}>
                 Folder size: {sizeError ? "Unavailable" : folderBytes === null ? "Calculating…" : `${(folderBytes / 1_000_000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} MB`}
             </div>
             <div className="vc-pfp-toolbar">
                 <label>User
                     <select value={selected} disabled={loading} onChange={event => { setSelected(event.target.value); setPage(0); }}>
                         <option value="">All users ({avatars.length})</option>
+                        {selected && !users.some(user => user.id === selected) && <option value={selected}>{UserStore.getUser(selected)?.username || selected} · {selected} (0)</option>}
                         {users.map(user => <option key={user.id} value={user.id}>{user.username} · {user.id} ({user.count})</option>)}
                     </select>
                 </label>
@@ -149,7 +150,7 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
             <p className="vc-pfp-note">Times use your local timezone. Older files without collection records show an estimated file timestamp. Refresh after collecting new pictures.</p>
             {error && <p className="vc-pfp-error" role="alert">{error}</p>}
             {loading ? <p role="status">Loading collection…</p> : <>
-                {!filtered.length && <p>No collected avatars here yet. Add users in the plugin settings and run Check now.</p>}
+                {!filtered.length && <p>{selected ? "No collected avatars for this user yet. Use Save PFP or watch this user to start collecting." : "No collected avatars here yet. Add users in the plugin settings and run Check now."}</p>}
                 <div className="vc-pfp-grid">
                     {visible.map(avatar => <AvatarCard key={`${folder}/${avatar.filename}/${revision}`} avatar={avatar} folder={folder} username={names.get(avatar.userId) ?? avatar.userId} />)}
                 </div>
@@ -163,6 +164,6 @@ const Gallery = ErrorBoundary.wrap(({ modalProps, folder }: { modalProps: Render
     </Modal>;
 }, { noop: false });
 
-export function openGallery(folder: string) {
-    openModal(modalProps => <Gallery modalProps={modalProps} folder={folder} />);
+export function openGallery(folder: string, initialUserId?: string) {
+    openModal(modalProps => <Gallery modalProps={modalProps} folder={folder} initialUserId={initialUserId} />);
 }

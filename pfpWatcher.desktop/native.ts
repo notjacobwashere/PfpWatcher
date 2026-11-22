@@ -6,8 +6,8 @@
 
 import { randomUUID } from "crypto";
 import { app, net, shell } from "electron";
-import { link, lstat, mkdir, readdir, readFile, rename, unlink, writeFile } from "fs/promises";
-import { isAbsolute, join } from "path";
+import { link, lstat, mkdir, open, readdir, readFile, rename, unlink, writeFile } from "fs/promises";
+import { isAbsolute, join, resolve } from "path";
 
 export interface ArchivedAvatar {
     filename: string;
@@ -25,6 +25,32 @@ interface Metadata {
 }
 
 const MAX_AVATAR_BYTES = 50 * 1024 * 1024;
+interface FolderCache {
+    bytes?: number;
+    sizeScan?: Promise<number>;
+    version: number;
+    count?: number;
+    countedAt: number;
+}
+const folders = new Map<string, FolderCache>();
+
+function folderCache(directory: string) {
+    const key = resolve(directory);
+    let cache = folders.get(key);
+    if (!cache) { cache = { version: 0, countedAt: 0 }; folders.set(key, cache); }
+    return cache;
+}
+
+function adjustSize(directory: string, delta: number) {
+    const cache = folderCache(directory);
+    cache.version++;
+    if (cache.bytes !== undefined) cache.bytes = Math.max(0, cache.bytes + delta);
+}
+
+async function fileBytes(path: string) {
+    try { const file = await lstat(path); return file.isFile() ? file.size : 0; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0; throw error; }
+}
 
 function getFolder(folder: string) {
     if (!folder.trim()) return join(app.getPath("documents"), "pfp");
@@ -76,9 +102,13 @@ async function rememberAvatar(directory: string, filename: string, username: str
     const metadataFolder = join(directory, ".pfp-watcher");
     await mkdir(metadataFolder, { recursive: true });
     const temporary = join(metadataFolder, `${randomUUID()}.tmp`);
+    const target = join(metadataFolder, `${filename}.json`);
+    const serialized = JSON.stringify(metadata);
+    const previousBytes = await fileBytes(target);
     try {
-        await writeFile(temporary, JSON.stringify(metadata), { flag: "wx" });
-        await rename(temporary, join(metadataFolder, `${filename}.json`));
+        await writeFile(temporary, serialized, { flag: "wx" });
+        await rename(temporary, target);
+        adjustSize(directory, Buffer.byteLength(serialized) - previousBytes);
     } finally {
         await unlink(temporary).catch(() => {});
     }
@@ -91,14 +121,15 @@ export async function openFolder(_: unknown, folder: string) {
     if (error) throw new Error(error);
 }
 
-export async function getFolderSize(_: unknown, folder: string) {
-    const pending = [getFolder(folder)];
+async function scanFolderSize(directory: string) {
+    const pending = [directory];
     let bytes = 0;
     while (pending.length) {
         const directory = pending.pop()!;
         try {
             const entries = await readdir(directory);
             for (const entry of entries) {
+                if (/^\.pfp-[0-9a-f-]+\.tmp$/.test(entry) || (directory.endsWith(".pfp-watcher") && /^[0-9a-f-]+\.tmp$/.test(entry))) continue;
                 const path = join(directory, entry);
                 try {
                     const file = await lstat(path);
@@ -113,6 +144,24 @@ export async function getFolderSize(_: unknown, folder: string) {
         }
     }
     return bytes;
+}
+
+export async function getFolderSize(_: unknown, folder: string, refresh = false) {
+    const directory = getFolder(folder);
+    const cache = folderCache(directory);
+    if (refresh) {
+        cache.bytes = undefined; cache.count = undefined; cache.version++;
+        if (cache.sizeScan) await cache.sizeScan.catch(() => {});
+    }
+    if (cache.bytes !== undefined) return cache.bytes;
+    if (!cache.sizeScan) {
+        const version = cache.version;
+        cache.sizeScan = scanFolderSize(directory).then(bytes => {
+            if (cache.version === version) cache.bytes = bytes;
+            return bytes;
+        }).finally(() => { cache.sizeScan = undefined; });
+    }
+    return cache.sizeScan;
 }
 
 export async function listAvatars(_: unknown, folder: string): Promise<ArchivedAvatar[]> {
@@ -208,27 +257,32 @@ export async function saveAvatar(_: unknown, folder: string, id: string, hash: s
     if (!response.ok) throw new Error(`Avatar download failed: HTTP ${response.status}`);
     if (!response.body) throw new Error("Empty download");
     const reader = response.body.getReader();
-    const chunks: Uint8Array[] = [];
+    const signature = Buffer.alloc(8);
+    let signatureLength = 0;
     let length = 0;
+    const temporary = join(directory, `.pfp-${randomUUID()}.tmp`);
+    let handle: Awaited<ReturnType<typeof open>> | undefined;
     try {
+        handle = await open(temporary, "wx");
         while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             length += value.byteLength;
             if (length > MAX_AVATAR_BYTES) throw new Error("Avatar exceeds 50 MiB");
-            chunks.push(value);
+            const take = Math.min(signature.length - signatureLength, value.byteLength);
+            if (take) { signature.set(value.subarray(0, take), signatureLength); signatureLength += take; }
+            let offset = 0;
+            while (offset < value.byteLength) {
+                const { bytesWritten } = await handle.write(value, offset, value.byteLength - offset);
+                if (!bytesWritten) throw new Error("Could not write avatar download");
+                offset += bytesWritten;
+            }
         }
-    } finally {
-        await reader.cancel();
-    }
-    const bytes = Buffer.concat(chunks);
-    const valid = extension === "png"
-        ? bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-        : ["GIF87a", "GIF89a"].includes(bytes.subarray(0, 6).toString());
-    if (!valid) throw new Error("CDN did not return the expected image format");
-    const temporary = join(directory, `.pfp-${randomUUID()}.tmp`);
-    try {
-        await writeFile(temporary, bytes, { flag: "wx" });
+        await handle.close(); handle = undefined;
+        const valid = extension === "png"
+            ? signatureLength >= 8 && signature.equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
+            : signatureLength >= 6 && ["GIF87a", "GIF89a"].includes(signature.subarray(0, 6).toString());
+        if (!valid) throw new Error("CDN did not return the expected image format");
         try { await link(temporary, path); }
         catch (error) {
             if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
@@ -236,8 +290,13 @@ export async function saveAvatar(_: unknown, folder: string, id: string, hash: s
             await rememberAvatar(directory, filename, username, file.mtimeMs, true);
             return { saved: false, path };
         }
+        adjustSize(directory, length);
+        const cache = folderCache(directory);
+        if (cache.count !== undefined) cache.count++;
         await rememberAvatar(directory, filename, username, Date.now(), false);
     } finally {
+        await reader.cancel().catch(() => {});
+        if (handle) await handle.close().catch(() => {});
         await unlink(temporary).catch(() => {});
     }
     return { saved: true, path };
@@ -247,13 +306,33 @@ export async function pruneAvatars(_: unknown, folder: string, maximum: number) 
     if (!Number.isInteger(maximum) || maximum < 1 || maximum > 100000)
         throw new Error("Invalid archive limit");
     const directory = getFolder(folder);
+    const cache = folderCache(directory);
+    if (cache.count === undefined || Date.now() - cache.countedAt > 60_000) {
+        let count = 0;
+        let filenames: string[];
+        try { filenames = await readdir(directory); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code === "ENOENT") return 0; throw error; }
+        for (const filename of filenames) {
+            try { parseFilename(filename); } catch { continue; }
+            try { await avatarFile(folder, filename); count++; }
+            catch (error) { if ((error as NodeJS.ErrnoException).code && (error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+        }
+        cache.count = count;
+        cache.countedAt = Date.now();
+    }
+    if (cache.count <= maximum) return 0;
     const avatars = (await listAvatars(null, folder)).sort((a, b) => b.collectedAt - a.collectedAt || a.filename.localeCompare(b.filename));
+    cache.count = avatars.length;
     let removed = 0;
     for (const avatar of avatars.slice(maximum)) {
         // Only remove validated archive images, never unrelated files or directories.
-        const { path } = await avatarFile(folder, avatar.filename);
+        const { path, file } = await avatarFile(folder, avatar.filename);
         await unlink(path);
-        await unlink(join(directory, ".pfp-watcher", `${avatar.filename}.json`)).catch(error => {
+        adjustSize(directory, -file.size);
+        if (cache.count !== undefined) cache.count--;
+        const metadata = join(directory, ".pfp-watcher", `${avatar.filename}.json`);
+        const metadataBytes = await fileBytes(metadata);
+        await unlink(metadata).then(() => adjustSize(directory, -metadataBytes)).catch(error => {
             if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         });
         removed++;

@@ -29,7 +29,7 @@ $files = [ordered]@{}
 Get-ChildItem -LiteralPath $dist -File | Sort-Object Name | ForEach-Object {
     $files[$_.Name] = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
 }
-$manifest = @{Version = '0.2.0-beta.6'; VencordRevision = $VencordRevision; Files = $files; Plugins = @($plugins | Sort-Object -Unique)} | ConvertTo-Json -Depth 8
+$manifest = @{Version = '0.2.0-beta.7'; VencordRevision = $VencordRevision; Files = $files; Plugins = @($plugins | Sort-Object -Unique)} | ConvertTo-Json -Depth 8
 $payload = Join-Path $scratch 'payload.zip'
 if (Test-Path -LiteralPath $payload) { Remove-Item -LiteralPath $payload }
 $archive = [IO.Compression.ZipFile]::Open($payload, [IO.Compression.ZipArchiveMode]::Create)
@@ -43,7 +43,7 @@ try {
 } finally { $archive.Dispose() }
 $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 if (!(Test-Path -LiteralPath $compiler)) { $compiler = Join-Path $env:WINDIR 'Microsoft.NET\Framework\v4.0.30319\csc.exe' }
-$exe = Join-Path $output 'PfpWatcher-Setup-v0.2.0-beta.6.exe'
+$exe = Join-Path $output 'PfpWatcher-Setup-v0.2.0-beta.7.exe'
 $license = Join-Path $PSScriptRoot '../LICENSE'
 if (!(Test-Path -LiteralPath $license)) { $license = Join-Path $checkout 'LICENSE' }
 $arguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', "/out:$exe", "/win32manifest:$(Join-Path $PSScriptRoot 'app.manifest')", "/resource:$payload,PfpWatcher.payload.zip", "/resource:$license,PfpWatcher.LICENSE", '/r:System.Windows.Forms.dll', '/r:System.Drawing.dll', '/r:System.Web.Extensions.dll', '/r:System.IO.Compression.dll', '/r:System.IO.Compression.FileSystem.dll', (Join-Path $PSScriptRoot 'InstallerCore.cs'), (Join-Path $PSScriptRoot 'Program.cs'))
